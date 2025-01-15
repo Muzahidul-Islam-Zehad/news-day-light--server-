@@ -7,9 +7,9 @@ const port = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-
-
 const { MongoClient, ServerApiVersion } = require('mongodb');
+
+
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.j876r.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -30,6 +30,7 @@ async function run() {
         // console.log("Pinged your deployment. You successfully connected to MongoDB!");
 
         const usersCollection = client.db("newsDayLight").collection('users');
+        const articlesCollection = client.db("newsDayLight").collection('articles');
 
 
         //check users in database
@@ -39,7 +40,7 @@ async function run() {
             const query = { email: user.email };
 
             const isUserFound = await usersCollection.findOne(query);
-            console.log(isUserFound);
+            // console.log(isUserFound);
 
             if (isUserFound) {
                 return res.send({ message: false })
@@ -67,7 +68,29 @@ async function run() {
                 res.send(result);
             }
             res.send('user already found');
+        });
+
+
+        //adding articles in articles collection
+        app.post('/articles', async(req,res)=>{
+            const articleData = req.body;
+
+            const updatedArticleData = {
+                articleTitle : articleData.title,
+                articleImage : articleData.photoURL,
+                publisher : articleData.publisher,
+                Tags : articleData.selectedOptions,
+                articleDescription : articleData.description,
+                userInfo : articleData.userInfo,
+                status : 'Pending',
+                isPremium : 'No'
+            }
+
+            const result = await articlesCollection.insertOne(updatedArticleData);
+
+            res.send(result);
         })
+
 
     } finally {
         // Ensures that the client will close when you finish/error
