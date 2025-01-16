@@ -5,7 +5,7 @@ const cors = require('cors');
 const port = process.env.PORT || 5000;
 
 app.use(cors({
-    origin : ['http://localhost:5173','https://newsdaylight-99199.web.app','https://newsdaylight-99199.firebaseapp.com']
+    origin: ['http://localhost:5173', 'https://newsdaylight-99199.web.app', 'https://newsdaylight-99199.firebaseapp.com']
 }));
 app.use(express.json());
 
@@ -85,12 +85,27 @@ async function run() {
                 articleDescription: articleData.description,
                 userInfo: articleData.userInfo,
                 status: 'Pending',
-                isPremium: 'No'
+                isPremium: 'No',
+                totalViewCount : 0,
             }
 
             const result = await articlesCollection.insertOne(updatedArticleData);
 
             res.send(result);
+        })
+
+        //update view count
+        app.patch('/articles/view-count/:id', async(req,res)=>{
+            const id = req.params.id;
+            const query = {_id : new ObjectId(id)};
+            const updatedDoc = {
+                $inc : {
+                    totalViewCount : 1
+                }
+            }
+
+            const result = await articlesCollection.updateOne(query, updatedDoc)
+            res.send(result )
         })
 
         // update article based on article id
@@ -99,12 +114,12 @@ async function run() {
             const updatedArticle = req.body;
             const query = { _id: new ObjectId(id) };
             const updatedDoc = {
-                $set : {
+                $set: {
                     articleTitle: updatedArticle.title,
-                articleImage: updatedArticle.photoURL,
-                publisher: updatedArticle.publisher,
-                Tags: updatedArticle.selectedOptions,
-                articleDescription: updatedArticle.description,
+                    articleImage: updatedArticle.photoURL,
+                    publisher: updatedArticle.publisher,
+                    Tags: updatedArticle.selectedOptions,
+                    articleDescription: updatedArticle.description,
                 }
             }
 
@@ -121,6 +136,16 @@ async function run() {
             }
 
             const result = await articlesCollection.find(query).toArray();
+            res.send(result);
+        })
+
+        // get article based on id
+        app.get('/article/data/:id', async (req, res) => {
+            const id = req.params.id;
+
+            const query = { _id: new ObjectId(id) };
+
+            const result = await articlesCollection.findOne(query);
             res.send(result);
         })
 
