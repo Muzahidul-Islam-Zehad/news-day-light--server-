@@ -4,10 +4,12 @@ const app = express();
 const cors = require('cors');
 const port = process.env.PORT || 5000;
 
-app.use(cors());
+app.use(cors({
+    origin : ['http://localhost:5173','https://newsdaylight-99199.web.app','https://newsdaylight-99199.firebaseapp.com']
+}));
 app.use(express.json());
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.j876r.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -24,7 +26,7 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
+        // await client.connect();
         // // Send a ping to confirm a successful connection
         // await client.db("admin").command({ ping: 1 });
         // console.log("Pinged your deployment. You successfully connected to MongoDB!");
@@ -72,22 +74,63 @@ async function run() {
 
 
         //adding articles in articles collection
-        app.post('/articles', async(req,res)=>{
+        app.post('/articles', async (req, res) => {
             const articleData = req.body;
 
             const updatedArticleData = {
-                articleTitle : articleData.title,
-                articleImage : articleData.photoURL,
-                publisher : articleData.publisher,
-                Tags : articleData.selectedOptions,
-                articleDescription : articleData.description,
-                userInfo : articleData.userInfo,
-                status : 'Pending',
-                isPremium : 'No'
+                articleTitle: articleData.title,
+                articleImage: articleData.photoURL,
+                publisher: articleData.publisher,
+                Tags: articleData.selectedOptions,
+                articleDescription: articleData.description,
+                userInfo: articleData.userInfo,
+                status: 'Pending',
+                isPremium: 'No'
             }
 
             const result = await articlesCollection.insertOne(updatedArticleData);
 
+            res.send(result);
+        })
+
+        // update article based on article id
+        app.patch('/my-articles/update/:id', async (req, res) => {
+            const id = req.params.id;
+            const updatedArticle = req.body;
+            const query = { _id: new ObjectId(id) };
+            const updatedDoc = {
+                $set : {
+                    articleTitle: updatedArticle.title,
+                articleImage: updatedArticle.photoURL,
+                publisher: updatedArticle.publisher,
+                Tags: updatedArticle.selectedOptions,
+                articleDescription: updatedArticle.description,
+                }
+            }
+
+            const result = await articlesCollection.updateOne(query, updatedDoc);
+            res.send(result);
+        })
+
+        // My article base on user email
+        app.get('/articles/:id', async (req, res) => {
+            const email = req.params.id;
+
+            const query = {
+                'userInfo.email': email
+            }
+
+            const result = await articlesCollection.find(query).toArray();
+            res.send(result);
+        })
+
+        // Delete article
+        app.delete('/my-articles/:id', async (req, res) => {
+            const id = req.params.id;
+
+            const query = { _id: new ObjectId(id) };
+
+            const result = await articlesCollection.deleteOne(query);
             res.send(result);
         })
 
