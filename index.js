@@ -71,6 +71,12 @@ async function run() {
             }
             res.send('user already found');
         });
+        //get all user data
+        app.get('/all-users', async(req,res)=>{
+            const result = await usersCollection.find().toArray();
+
+            res.send(result);
+        })
 
         //get user profile
         app.get('/users/:id', async(req,res)=>{
