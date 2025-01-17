@@ -78,6 +78,22 @@ async function run() {
             res.send(result);
         })
 
+        //update user to admin
+        app.patch('/make-admin/:id', async(req, res)=>{
+            const id = req.params.id;
+            const query = {
+                _id : new ObjectId(id),
+            }
+            const updatedDoc = {
+                $set : {
+                    role : 'Admin'
+                }
+            }
+
+            const result = await usersCollection.updateOne(query, updatedDoc);
+            res.send(result);
+        })
+
         //get user profile
         app.get('/users/:id', async(req,res)=>{
             const email = req.params.id;
