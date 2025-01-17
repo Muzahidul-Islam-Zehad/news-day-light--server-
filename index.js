@@ -72,6 +72,34 @@ async function run() {
             res.send('user already found');
         });
 
+        //get user profile
+        app.get('/users/:id', async(req,res)=>{
+            const email = req.params.id;
+
+            const query = {email};
+
+            const result = await usersCollection.findOne(query);
+            res.send(result);
+        })
+
+        //Update user profile
+        app.patch('/users/:id', async(req, res)=>{
+            const email = req.params.id;
+
+            const userData = req.body;
+
+            const query = {email};
+            const updatedDoc = {
+                $set : {
+                    name : userData.name,
+                    photoURL : userData.photoURL
+                }
+            }
+
+            const result = await usersCollection.updateOne(query, updatedDoc);
+            res.send(result);
+            
+        } )
 
         //adding articles in articles collection
         app.post('/articles', async (req, res) => {
