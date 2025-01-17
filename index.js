@@ -137,10 +137,17 @@ async function run() {
                 status: 'Pending',
                 isPremium: 'No',
                 totalViewCount : 0,
+                createdAt : new Date()
             }
 
             const result = await articlesCollection.insertOne(updatedArticleData);
 
+            res.send(result);
+        })
+
+        //get all article data to admin
+        app.get('/all-articles/data', async(req,res)=>{
+            const result = await articlesCollection.find().toArray();
             res.send(result);
         })
 
