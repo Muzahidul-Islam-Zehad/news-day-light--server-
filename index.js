@@ -279,6 +279,26 @@ async function run() {
             res.send(result);
         })
 
+        //get all premium articles
+        app.get('/premium/articles/only', async(req, res)=>{
+            const query = {
+                status : 'Approved',
+                isPremium : 'Yes'
+            };
+            const result = await articlesCollection.find(query).toArray();
+
+            res.send(result);
+        })
+
+        //get all approved articles
+        app.get('/all-articles/approved', async(req,res)=>{
+            const query = {
+                status : 'Approved'
+            }
+            const result = await articlesCollection.find(query).toArray();
+            res.send(result);  
+        })
+
     } finally {
         // Ensures that the client will close when you finish/error
         // await client.close();
