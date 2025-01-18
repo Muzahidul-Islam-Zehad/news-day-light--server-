@@ -105,6 +105,17 @@ async function run() {
             res.send(result);
         })
 
+        //get users count
+        app.get('/users-count', async(req, res)=>{
+            const allUserCount = await usersCollection.estimatedDocumentCount();
+            const premiumUsersCount = await usersCollection.countDocuments({premiumTaken : 'Yes'});
+            const normalUsersCount = await usersCollection.countDocuments({premiumTaken : 'No'});
+            
+            res.send({
+                allUserCount, normalUsersCount, premiumUsersCount
+            })
+        } )
+
         //Update user profile
         app.patch('/users/:id', async(req, res)=>{
             const email = req.params.id;
@@ -149,6 +160,14 @@ async function run() {
         //get all article data to admin
         app.get('/all-articles/data', async(req,res)=>{
             const result = await articlesCollection.find().toArray();
+            res.send(result);
+        })
+
+        //get trending article data
+        app.get('/articles/trending', async(req, res)=>{
+            const query = {status : 'Approved'};
+            const result = await articlesCollection.find(query).sort({totalViewCount : -1}).limit(6).toArray();
+
             res.send(result);
         })
 
