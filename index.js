@@ -124,7 +124,7 @@ async function run() {
             
         } )
 
-        //adding articles in articles collection
+        //add articles in articles collection
         app.post('/articles', async (req, res) => {
             const articleData = req.body;
 
@@ -132,7 +132,7 @@ async function run() {
                 articleTitle: articleData.title,
                 articleImage: articleData.photoURL,
                 publisher: articleData.publisher,
-                Tags: articleData.selectedOptions,
+                Tags: articleData.formatedTags,
                 articleDescription: articleData.description,
                 userInfo: articleData.userInfo,
                 status: 'Pending',
@@ -292,9 +292,38 @@ async function run() {
 
         //get all approved articles
         app.get('/all-articles/approved', async(req,res)=>{
-            const query = {
+
+            const search = req.query.search;
+            const publicationFiler = req.query.publicationFiler;
+            const tags = req.query.tags;
+
+            // console.log(search, publicationFiler, tags);
+
+            let query = {
                 status : 'Approved'
             }
+
+            if(search)
+            {
+                query.articleTitle = {
+                    $regex : search,
+                    $options : 'i'
+                };
+            }
+
+            if(publicationFiler)
+            {
+                query.publisher = publicationFiler
+            }
+
+            if(tags)
+            {
+                const tagsArray = tags.split(',');
+                query.Tags = {
+                    $all : tagsArray
+                };
+            }
+
             const result = await articlesCollection.find(query).toArray();
             res.send(result);  
         })
