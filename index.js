@@ -33,6 +33,7 @@ async function run() {
 
         const usersCollection = client.db("newsDayLight").collection('users');
         const articlesCollection = client.db("newsDayLight").collection('articles');
+        const publishersCollection = client.db("newsDayLight").collection('publishers');
 
 
         //check users in database
@@ -263,8 +264,20 @@ async function run() {
 
             const result = await articlesCollection.deleteOne(query);
             res.send(result);
+        });
+
+        //Add publisher
+        app.post('/add-publishers', async(req, res)=>{
+            const publisherData = req.body;
+            const result = await publishersCollection.insertOne(publisherData);
+            res.send(result);
         })
 
+        // get all publisher data
+        app.get('/publisher-data', async(req, res)=>{
+            const result = await publishersCollection.find().toArray();
+            res.send(result);
+        })
 
     } finally {
         // Ensures that the client will close when you finish/error
