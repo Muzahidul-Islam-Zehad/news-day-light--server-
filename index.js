@@ -184,6 +184,55 @@ async function run() {
             res.send(result);
         })
 
+        //update article status approve
+        app.patch('/update/status/:id', async(req, res)=>{
+            const id = req.params.id;
+            const query = {_id : new ObjectId(id)};
+            const updatedDoc = {
+                $set : {
+                    status : 'Approved'
+                }
+            }
+
+            const result = await articlesCollection.updateOne(query, updatedDoc);
+
+            res.send(result);
+        })
+
+        //article decline
+        app.patch('/article/decline/:id', async(req, res)=>
+        {
+            const id = req.params.id;
+            const reason = req.body;
+
+            const query = {_id : new ObjectId(id)};
+
+            const updatedDoc = {
+                $set : {
+                    status : 'Declined',
+                    decliningReason : reason.decliningReason
+                }
+            }
+            
+            const result = await articlesCollection.updateOne(query, updatedDoc);
+
+            res.send(result);
+        })
+
+        //make premium article
+        app.patch('/make-premium/:id',async(req, res)=>{
+            const id = req.params.id;
+            const query = {_id : new ObjectId(id)};
+            const updatedDoc = {
+                $set : 
+                {
+                    isPremium : "Yes"
+                }
+            }
+
+            const result = await articlesCollection.updateOne(query, updatedDoc);
+            res.send(result);
+        })
         // My article base on user email
         app.get('/articles/:id', async (req, res) => {
             const email = req.params.id;
