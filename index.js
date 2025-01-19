@@ -110,13 +110,28 @@ async function run() {
         //get users count
         app.get('/users-count', async (req, res) => {
             const allUserCount = await usersCollection.estimatedDocumentCount();
-            const premiumUsersCount = await usersCollection.countDocuments({ premiumTaken: 'Yes' });
-            const normalUsersCount = await usersCollection.countDocuments({ premiumTaken: 'No' });
+
+            // Counting Premium Users: premiumEndAt exists and is a valid date greater than now
+            const premiumUsersCount = await usersCollection.countDocuments({
+                premiumEndAt: { $exists: true, $ne: null },
+                premiumEndAt: { $gt: new Date() }
+            });
+
+            // Counting Normal Users: premiumEndAt is null or doesn't exist
+            const normalUsersCount = await usersCollection.countDocuments({
+                $or: [
+                    { premiumEndAt: { $exists: false } },  // premiumEndAt doesn't exist
+                    { premiumEndAt: null }  // premiumEndAt is null
+                ]
+            });
 
             res.send({
-                allUserCount, normalUsersCount, premiumUsersCount
-            })
-        })
+                allUserCount,
+                normalUsersCount,
+                premiumUsersCount
+            });
+        });
+
 
         //Update user profile
         app.patch('/users/:id', async (req, res) => {
@@ -181,12 +196,12 @@ async function run() {
         })
 
         //remove subscription of the user
-        app.patch('/remove/subscription', async(req,res)=>{
-            const email = req.body;
-            const query = {email};
+        app.patch('/remove/subscription', async (req, res) => {
+            const {email} = req.body;
+            const query = { email };
             const updatedDoc = {
-                $set : {
-                    premiumEndAt : null,
+                $set: {
+                    premiumEndAt: null,
                 }
             }
 
