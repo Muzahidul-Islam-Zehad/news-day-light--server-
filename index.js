@@ -4,6 +4,7 @@ const app = express();
 const cors = require('cors');
 const port = process.env.PORT || 5000;
 const Stripe = require('stripe');
+const jwt = require('jsonwebtoken');
 
 app.use(cors({
     origin: ['http://localhost:5173', 'https://newsdaylight-99199.web.app', 'https://newsdaylight-99199.firebaseapp.com']
@@ -25,6 +26,26 @@ const client = new MongoClient(uri, {
     }
 });
 
+const verifyToken = (req, res, next) => {
+
+    if (!req.headers.authorization) {
+        res.status(401).send({ message: 'UnAuthorized access' });
+    }
+
+    const token = req.headers.authorization.split(' ')[1];
+
+    jwt.verify(token, process.env.JWT_SECRET, (error, decoded) => {
+        if (error) {
+            res.status(401).send({ message: 'UnAuthorized access' });
+        }
+        if (decoded) {
+            res.user = decoded;
+        }
+        next();
+    })
+
+}
+
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
@@ -36,6 +57,15 @@ async function run() {
         const usersCollection = client.db("newsDayLight").collection('users');
         const articlesCollection = client.db("newsDayLight").collection('articles');
         const publishersCollection = client.db("newsDayLight").collection('publishers');
+
+
+        //create jwt
+        app.post('/jwt', async (req, res) => {
+            const user = req.body;
+            const token = jwt.sign(user, process.env.JWT_SECRET, { expiresIn: '20d' });
+            res.send({ token });
+        })
+
 
 
         //check users in database
@@ -75,14 +105,14 @@ async function run() {
             res.send('user already found');
         });
         //get all user data
-        app.get('/all-users', async (req, res) => {
+        app.get('/all-users', verifyToken, async (req, res) => {
             const result = await usersCollection.find().toArray();
 
             res.send(result);
         })
 
         //update user to admin
-        app.patch('/make-admin/:id', async (req, res) => {
+        app.patch('/make-admin/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
             const query = {
                 _id: new ObjectId(id),
@@ -98,7 +128,7 @@ async function run() {
         })
 
         //get user profile
-        app.get('/users/:id', async (req, res) => {
+        app.get('/users/:id', verifyToken, async (req, res) => {
             const email = req.params.id;
 
             const query = { email };
@@ -111,17 +141,15 @@ async function run() {
         app.get('/users-count', async (req, res) => {
             const allUserCount = await usersCollection.estimatedDocumentCount();
 
-            // Counting Premium Users: premiumEndAt exists and is a valid date greater than now
             const premiumUsersCount = await usersCollection.countDocuments({
                 premiumEndAt: { $exists: true, $ne: null },
                 premiumEndAt: { $gt: new Date() }
             });
 
-            // Counting Normal Users: premiumEndAt is null or doesn't exist
             const normalUsersCount = await usersCollection.countDocuments({
                 $or: [
-                    { premiumEndAt: { $exists: false } },  // premiumEndAt doesn't exist
-                    { premiumEndAt: null }  // premiumEndAt is null
+                    { premiumEndAt: { $exists: false } },
+                    { premiumEndAt: null }
                 ]
             });
 
@@ -134,7 +162,7 @@ async function run() {
 
 
         //Update user profile
-        app.patch('/users/:id', async (req, res) => {
+        app.patch('/users/:id', verifyToken, async (req, res) => {
             const email = req.params.id;
 
             const userData = req.body;
@@ -152,8 +180,8 @@ async function run() {
 
         })
 
-        //make user normal to premium
-        app.patch('/make-premium-user', async (req, res) => {
+        //make user normal to subscribed
+        app.patch('/make-premium-user', verifyToken, async (req, res) => {
             const { email, time } = req.body;
 
             const query = { email }
@@ -197,7 +225,7 @@ async function run() {
 
         //remove subscription of the user
         app.patch('/remove/subscription', async (req, res) => {
-            const {email} = req.body;
+            const { email } = req.body;
             const query = { email };
             const updatedDoc = {
                 $set: {
@@ -210,29 +238,59 @@ async function run() {
         })
 
         //add articles in articles collection
-        app.post('/articles', async (req, res) => {
-            const articleData = req.body;
-
-            const updatedArticleData = {
-                articleTitle: articleData.title,
-                articleImage: articleData.photoURL,
-                publisher: articleData.publisher,
-                Tags: articleData.formatedTags,
-                articleDescription: articleData.description,
-                userInfo: articleData.userInfo,
-                status: 'Pending',
-                isPremium: 'No',
-                totalViewCount: 0,
-                createdAt: new Date()
+        app.post('/articles', verifyToken, async (req, res) => {
+            try {
+                const email = req.query.email;
+                const now = new Date();
+        
+                // Find if the user is normal or premium
+                const user = await usersCollection.findOne({
+                    email,
+                    $or: [
+                        { premiumEndAt: { $exists: false } }, // No premiumEndAt field
+                        { premiumEndAt: null },              // premiumEndAt is null
+                        { premiumEndAt: { $lte: now } },     // premiumEndAt is in the past
+                    ],
+                });
+        
+                if (user) {
+                    // Normal user logic: Allow only one article
+                    const publishedArticles = await articlesCollection.countDocuments({
+                        "userInfo.email": email,
+                    });
+        
+                    if (publishedArticles > 0) {
+                        return res.send({ message: 'needPremium' });
+                    }
+                }
+        
+                // Premium user logic or first article for normal user
+                const articleData = req.body;
+                const newArticle = {
+                    articleTitle: articleData.title,
+                    articleImage: articleData.photoURL,
+                    publisher: articleData.publisher,
+                    Tags: articleData.formatedTags || [],
+                    articleDescription: articleData.description,
+                    userInfo: articleData.userInfo,
+                    status: 'Pending',
+                    isPremium: 'No', 
+                    totalViewCount: 0,
+                    createdAt: new Date(),
+                };
+        
+                const result = await articlesCollection.insertOne(newArticle);
+                res.status(201).send(result);
+        
+            } catch (error) {
+                console.error('Error:', error);
+                res.status(500).send({ message: 'Server error' });
             }
-
-            const result = await articlesCollection.insertOne(updatedArticleData);
-
-            res.send(result);
-        })
+        });
+        
 
         //get all article data to admin
-        app.get('/all-articles/data', async (req, res) => {
+        app.get('/all-articles/data', verifyToken, async (req, res) => {
             const result = await articlesCollection.find().toArray();
             res.send(result);
         })
@@ -260,7 +318,7 @@ async function run() {
         })
 
         // update article based on article id
-        app.patch('/my-articles/update/:id', async (req, res) => {
+        app.patch('/my-articles/update/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
             const updatedArticle = req.body;
             const query = { _id: new ObjectId(id) };
@@ -279,7 +337,7 @@ async function run() {
         })
 
         //update article status approve
-        app.patch('/update/status/:id', async (req, res) => {
+        app.patch('/update/status/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const updatedDoc = {
@@ -294,7 +352,7 @@ async function run() {
         })
 
         //article decline
-        app.patch('/article/decline/:id', async (req, res) => {
+        app.patch('/article/decline/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
             const reason = req.body;
 
@@ -313,7 +371,7 @@ async function run() {
         })
 
         //make premium article
-        app.patch('/make-premium/:id', async (req, res) => {
+        app.patch('/make-premium/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const updatedDoc = {
@@ -327,7 +385,7 @@ async function run() {
             res.send(result);
         })
         // My article base on user email
-        app.get('/articles/:id', async (req, res) => {
+        app.get('/articles/:id', verifyToken, async (req, res) => {
             const email = req.params.id;
 
             const query = {
@@ -339,7 +397,7 @@ async function run() {
         })
 
         // get article based on id
-        app.get('/article/data/:id', async (req, res) => {
+        app.get('/article/data/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
 
             const query = { _id: new ObjectId(id) };
@@ -349,7 +407,7 @@ async function run() {
         })
 
         // Delete article
-        app.delete('/my-articles/:id', async (req, res) => {
+        app.delete('/my-articles/:id', verifyToken, async (req, res) => {
             const id = req.params.id;
 
             const query = { _id: new ObjectId(id) };
@@ -359,7 +417,7 @@ async function run() {
         });
 
         //Add publisher
-        app.post('/add-publishers', async (req, res) => {
+        app.post('/add-publishers', verifyToken, async (req, res) => {
             const publisherData = req.body;
             const result = await publishersCollection.insertOne(publisherData);
             res.send(result);
@@ -372,7 +430,7 @@ async function run() {
         })
 
         //get all premium articles
-        app.get('/premium/articles/only', async (req, res) => {
+        app.get('/premium/articles/only', verifyToken, async (req, res) => {
             const query = {
                 status: 'Approved',
                 isPremium: 'Yes'
@@ -383,7 +441,7 @@ async function run() {
         })
 
         //get all approved articles
-        app.get('/all-articles/approved', async (req, res) => {
+        app.get('/all-articles/approved', verifyToken, async (req, res) => {
 
             const search = req.query.search;
             const publicationFiler = req.query.publicationFiler;
@@ -418,7 +476,7 @@ async function run() {
         })
 
         // create payment intent
-        app.post('/create-payment-intent', async (req, res) => {
+        app.post('/create-payment-intent', verifyToken, async (req, res) => {
             const { amount } = req.body;
             const price = parseInt(amount) * 100;
             // console.log(price);
