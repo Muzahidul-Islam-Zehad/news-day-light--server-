@@ -106,9 +106,21 @@ async function run() {
         });
         //get all user data
         app.get('/all-users', verifyToken, async (req, res) => {
-            const result = await usersCollection.find().toArray();
+            const page = parseInt(req.query.page) || 1; // Current page
+            const limit = parseInt(req.query.limit) || 10; // Items per page
+            const skip = (page - 1) * limit; // Calculate offset
 
-            res.send(result);
+            const totalItems = await usersCollection.estimatedDocumentCount();
+            const users = await usersCollection.find().skip(skip).limit(limit).toArray(); // Paginated users
+            // const result = await usersCollection.find().toArray();
+
+            // res.send(result);
+            res.send({
+                users,
+                totalPages: Math.ceil(totalItems / limit),
+                totalItems,
+                currentPage: page,
+            });
         })
 
         //update user to admin
@@ -242,28 +254,26 @@ async function run() {
             try {
                 const email = req.query.email;
                 const now = new Date();
-        
-                // Find if the user is normal or premium
+
                 const user = await usersCollection.findOne({
                     email,
                     $or: [
-                        { premiumEndAt: { $exists: false } }, // No premiumEndAt field
-                        { premiumEndAt: null },              // premiumEndAt is null
-                        { premiumEndAt: { $lte: now } },     // premiumEndAt is in the past
+                        { premiumEndAt: { $exists: false } },
+                        { premiumEndAt: null },
+                        { premiumEndAt: { $lte: now } },
                     ],
                 });
-        
+
                 if (user) {
-                    // Normal user logic: Allow only one article
                     const publishedArticles = await articlesCollection.countDocuments({
                         "userInfo.email": email,
                     });
-        
+
                     if (publishedArticles > 0) {
                         return res.send({ message: 'needPremium' });
                     }
                 }
-        
+
                 // Premium user logic or first article for normal user
                 const articleData = req.body;
                 const newArticle = {
@@ -274,25 +284,37 @@ async function run() {
                     articleDescription: articleData.description,
                     userInfo: articleData.userInfo,
                     status: 'Pending',
-                    isPremium: 'No', 
+                    isPremium: 'No',
                     totalViewCount: 0,
                     createdAt: new Date(),
                 };
-        
+
                 const result = await articlesCollection.insertOne(newArticle);
                 res.status(201).send(result);
-        
+
             } catch (error) {
                 console.error('Error:', error);
                 res.status(500).send({ message: 'Server error' });
             }
         });
-        
+
 
         //get all article data to admin
         app.get('/all-articles/data', verifyToken, async (req, res) => {
-            const result = await articlesCollection.find().toArray();
-            res.send(result);
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 10;
+            const skip = (page - 1) * limit;
+            const totalItems = await articlesCollection.estimatedDocumentCount();
+
+            const articles = await articlesCollection.find().skip(skip).limit(limit).toArray();
+            // const result = await articlesCollection.find().toArray();
+            // res.send(result);
+            res.send({
+                articles,
+                totalPages: Math.ceil(totalItems / limit),
+                totalItems,
+                currentPage: page,
+              });
         })
 
         //get trending article data
@@ -441,7 +463,7 @@ async function run() {
         })
 
         //get all approved articles
-        app.get('/all-articles/approved', verifyToken, async (req, res) => {
+        app.get('/all-articles/approved', async (req, res) => {
 
             const search = req.query.search;
             const publicationFiler = req.query.publicationFiler;
