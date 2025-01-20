@@ -158,16 +158,16 @@ async function run() {
                 premiumEndAt: { $gt: new Date() }
             });
 
-            const normalUsersCount = await usersCollection.countDocuments({
-                $or: [
-                    { premiumEndAt: { $exists: false } },
-                    { premiumEndAt: null }
-                ]
-            });
+            // const normalUsersCount = await usersCollection.countDocuments({
+            //     $or: [
+            //         { premiumEndAt: { $exists: false } },
+            //         { premiumEndAt: null }
+            //     ]
+            // });
 
             res.send({
                 allUserCount,
-                normalUsersCount,
+                normalUsersCount : allUserCount - premiumUsersCount,
                 premiumUsersCount
             });
         });
@@ -314,7 +314,7 @@ async function run() {
                 totalPages: Math.ceil(totalItems / limit),
                 totalItems,
                 currentPage: page,
-              });
+            });
         })
 
         //get trending article data
@@ -349,7 +349,7 @@ async function run() {
                     articleTitle: updatedArticle.title,
                     articleImage: updatedArticle.photoURL,
                     publisher: updatedArticle.publisher,
-                    Tags: updatedArticle.selectedOptions,
+                    Tags: updatedArticle.formatedTags,
                     articleDescription: updatedArticle.description,
                 }
             }
@@ -371,6 +371,27 @@ async function run() {
             const result = await articlesCollection.updateOne(query, updatedDoc);
 
             res.send(result);
+        })
+        //check isAdmin
+        app.get('/check/isAdmin', async (req, res) => {
+            const email = req.query.email;
+
+            if (email) {
+                const query = {
+                    email,
+                    role: 'Admin'
+                };
+
+                const isAdmin = await usersCollection.findOne(query);
+
+                if (isAdmin) {
+                    res.send({ isAdmin: true })
+                }
+                else {
+                    res.send({ isAdmin: false });
+                }
+            }
+
         })
 
         //article decline
@@ -510,6 +531,38 @@ async function run() {
 
             res.send({ clientSecret: paymentIntent.client_secret })
 
+        })
+
+        //publisher article count
+        app.get('/publisher/article/count', verifyToken, async(req,res)=>{
+            
+            const result = await articlesCollection.aggregate([
+                {
+                    $group : {
+                        _id : "$publisher",
+                        articleCount : {$sum : 1},
+                    },
+                },
+                {
+                    $lookup:{
+                        from : 'publishers',
+                        localField : '_id',
+                        foreignField : 'publisherName',
+                        as : 'publisherDetails'
+                    },
+                },
+                {
+                    $unwind : "$publisherDetails"
+                },
+                {
+                    $project: {
+                        publisherName : "$_id",
+                        articleCount: 1,
+                    },
+                },
+            ]).toArray();
+
+            res.send(result);
         })
 
     } finally {
