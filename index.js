@@ -183,10 +183,13 @@ async function run() {
             const updatedDoc = {
                 $set: {
                     name: userData.name,
-                    photoURL: userData.photoURL
+                    photoURL: userData.photoURL,
+                    phone : userData.phone,
+                    address: userData.address,
+                    birth: userData.birth,
+                    gender: userData.gender
                 }
             }
-
             const result = await usersCollection.updateOne(query, updatedDoc);
             res.send(result);
 
